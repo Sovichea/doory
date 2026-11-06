@@ -11,6 +11,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
+# A Windows checkout can carry CRLF into the build context; the nginx entrypoint would then try to run
+# "/bin/sh\r". The build stage is root, unlike the unprivileged runtime image.
+RUN sed -i 's/\r$//' nginx/dns-resolver.envsh
 
 # ---- serve it (unprivileged nginx on :8080) and reverse-proxy the API ----
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime
@@ -18,7 +21,7 @@ FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime
 # COPY gives the folders it creates the same mode, and nginx needs to enter them.
 # Rendered into conf.d/default.conf at start-up; only ${NGINX_RESOLVER} is substituted.
 COPY --chmod=a+rX nginx.conf /etc/nginx/templates/default.conf.template
-COPY --chmod=a+rx nginx/dns-resolver.envsh /docker-entrypoint.d/05-dns-resolver.envsh
+COPY --from=build --chmod=a+rx /app/nginx/dns-resolver.envsh /docker-entrypoint.d/05-dns-resolver.envsh
 ENV NGINX_ENVSUBST_FILTER=NGINX_RESOLVER
 COPY --chmod=a+rX nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html

@@ -85,7 +85,9 @@ RUN if [ "$INSTALL_FFMPEG" = "true" ]; then \
 
 WORKDIR /app
 COPY --chown=doory:doory . .
-RUN chmod +x docker-entrypoint.sh \
+# A Windows checkout can carry CRLF into the build context; the kernel would then look for "/bin/sh\r".
+RUN sed -i 's/\r$//' docker-entrypoint.sh \
+    && chmod +x docker-entrypoint.sh \
     && mkdir -p /app/media /app/exports /app/staticfiles \
     && chown doory:doory /app /app/media /app/exports /app/staticfiles
 
